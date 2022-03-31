@@ -3,12 +3,11 @@ package v1
 import (
 	"context"
 	"fmt"
-	"mime/multipart"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/render"
 	"github.com/go-resty/resty/v2"
+	"mime/multipart"
+	"net/http"
 )
 
 type Render interface {
@@ -16,20 +15,21 @@ type Render interface {
 	Success(interface{}) render.Render
 	Unmarshal([]byte, int, interface{}) error
 }
+
 type UserService interface {
 	Upload(ctx *gin.Context, req *UploadRequest) (*UploadResponse, error)
 	Save(ctx *gin.Context, req *SaveRequest) (*SaveResponse, error)
 }
-type (
-	RequestOption func(*resty.Request)
-	UserClient    interface {
-		Upload(ctx context.Context, req *UploadRequest, opts ...RequestOption) (*UploadResponse, error)
-		Save(ctx context.Context, req *SaveRequest, opts ...RequestOption) (*SaveResponse, error)
-	}
-)
 
-func RegisterService(router *gin.Engine, service UserService, render Render) {
-	group := router.Group("/school/")
+type RequestOption func(*resty.Request)
+
+type UserClient interface {
+	Upload(ctx context.Context, req *UploadRequest, opts ...RequestOption) (*UploadResponse, error)
+	Save(ctx context.Context, req *SaveRequest, opts ...RequestOption) (*SaveResponse, error)
+}
+
+func RegisterService(engine *gin.Engine, service UserService, render Render, middleware ...gin.HandlerFunc) {
+	group := engine.Group("/school/", middleware...)
 	{
 		group.POST("upload", func(ctx *gin.Context) {
 			var req UploadRequest
@@ -68,22 +68,33 @@ type UploadRequest struct {
 	Avatar *multipart.FileHeader `form:"avatar" json:"avatar"`
 	Name   string                `form:"name" json:"name"`
 }
+
 type UploadResponse struct {
 	Results []string `json:"results"`
 }
+
 type SaveRequest struct {
-	Id   int64  `json:"id" uri:"id"`
-	Name string `form:"name" json:"name"`
+	Id     int64             `json:"id" uri:"id"`
+	Name   string            `form:"name" json:"name"`
+	Person map[int64]*Person `form:"person" json:"person"`
 }
+
+type Person struct {
+	Age   int64 `form:"age" json:"age"`
+	Level int64 `form:"level" json:"level"`
+}
+
 type SaveResponse struct {
 	Results []string `json:"results"`
 }
+
 type userClient struct {
 	scheme string
 	host   string
 	client *resty.Client
 	render Render
 }
+
 type clientOption func(*userClient)
 
 func WithScheme(scheme string) clientOption {

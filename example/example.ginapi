@@ -19,8 +19,14 @@ message UploadResponse {
 }
 
 message SaveRequest {
-  int64 id = "uri:id"
+  int64 id = "uri:id";
   string name = "form:name";
+  map<int64,Person> person = "form:person";
+}
+
+message Person {
+  int64 age = "form:age";
+  int64 level = "form:level";
 }
 
 message SaveResponse {
