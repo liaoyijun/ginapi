@@ -39,15 +39,6 @@ func (g *Ginapi) Host() string {
 	return "http://localhost:80"
 }
 
-func (g *Ginapi) Group() string {
-	for _, v := range g.Entries {
-		if strings.Trim(v.Group, "\"") != "" {
-			return v.Group
-		}
-	}
-	return "\"/\""
-}
-
 func (g *Ginapi) Router() *Router {
 	for _, v := range g.Entries {
 		if v.Router != nil {
@@ -72,7 +63,6 @@ type Entry struct {
 
 	Package string   ` "package" @(Ident ( "." Ident )*)`
 	Host    string   `| "host" "=" @String`
-	Group   string   `| "group" "=" @String`
 	Router  *Router  `| @@`
 	Message *Message `| @@`
 }
@@ -112,6 +102,7 @@ type Router struct {
 	Pos lexer.Position
 
 	Name    string         `"router" @Ident`
+	Group   string         `("(" @String ")")?`
 	Entries []*RouterEntry `"{" ( @@ ";"? )* "}"`
 }
 
@@ -134,7 +125,7 @@ func (r *RouterEntry) CallBlock() []jen.Code {
 		).Block(
 			jen.Id("ctx.Render").Call(
 				jen.Id("200"),
-				jen.Id("render.Error").Call(
+				jen.Id("render.Marshal").Call(
 					jen.Id("err"),
 				),
 			),
@@ -142,7 +133,7 @@ func (r *RouterEntry) CallBlock() []jen.Code {
 		),
 		jen.Id("ctx.Render").Call(
 			jen.Id("200"),
-			jen.Id("render.Success").Call(
+			jen.Id("render.Marshal").Call(
 				jen.Id("resp"),
 			),
 		),
@@ -179,7 +170,7 @@ func (route *Route) ShouldBindBlock() []jen.Code {
 		).Block(
 			jen.Id("ctx.Render").Call(
 				jen.Id("200"),
-				jen.Id("render.Error").Call(
+				jen.Id("render.Marshal").Call(
 					jen.Id("err"),
 				),
 			),
@@ -194,7 +185,7 @@ func (route *Route) ShouldBindBlock() []jen.Code {
 	).Block(
 		jen.Id("ctx.Render").Call(
 			jen.Id("200"),
-			jen.Id("render.Error").Call(
+			jen.Id("render.Marshal").Call(
 				jen.Id("err"),
 			),
 		),
@@ -676,11 +667,9 @@ func (g *Generator) ClientInterface() {
 
 func (g *Generator) RenderInterface() {
 	g.File.Type().Id("Render").Interface(
-		jen.Id("Error").Params(jen.Id("error")).Params(jen.Qual("github.com/gin-gonic/gin/render", "Render")),
-		jen.Id("Success").Params(jen.Id("interface{}")).Params(jen.Qual("github.com/gin-gonic/gin/render", "Render")),
+		jen.Id("Marshal").Params(jen.Id("interface{}")).Params(jen.Qual("github.com/gin-gonic/gin/render", "Render")),
 		jen.Id("Unmarshal").Params(
-			jen.Id("[]byte"),
-			jen.Id("int"),
+			jen.Id("*").Qual("github.com/go-resty/resty/v2", "Response"),
 			jen.Id("interface{}"),
 		).Params(jen.Id("error")),
 	).Line()
@@ -690,15 +679,15 @@ func (g *Generator) RegisterService() {
 	keyword := fmt.Sprintf("%s%s", g.Value.Router().Name, "Service")
 	register := g.File.Func().Id("RegisterService").Params(
 		jen.Id("engine").Op("*").Qual("github.com/gin-gonic/gin", "Engine"),
-		jen.Id("service").Id(keyword),
 		jen.Id("render").Id("Render"),
+		jen.Id("service").Id(keyword),
 		jen.Id("middleware").Op("...").Qual("github.com/gin-gonic/gin", "HandlerFunc"),
 	)
 
 	var block []jen.Code
-	if g.Value.Group() != "\"/\"" {
+	if group := g.Value.Router().Group; group != "\"/\"" {
 		block = append(block, jen.Id("group").Op(":=").Id("engine").Dot("Group").Call(
-			jen.Id(g.Value.Group()),
+			jen.Id(group),
 			jen.Id("middleware..."),
 		))
 		var routers []jen.Code
@@ -836,7 +825,7 @@ func (g *Generator) MethodStatement(client string) {
 				path = strings.Replace(path, old, new, 1)
 			}
 		}
-		statements = g.ParamsCode(strings.Trim(r.Route.Method, "\""), strings.Trim(g.Value.Group(), "\"")+path, r.Route.Request.Reference, r.Route.Response.Reference)
+		statements = g.ParamsCode(strings.Trim(r.Route.Method, "\""), strings.Trim(g.Value.Router().Group, "\"")+path, r.Route.Request.Reference, r.Route.Response.Reference)
 
 		g.File.Func().Params(
 			jen.Id("c").Op("*").Id(client),
@@ -938,8 +927,7 @@ func (g *Generator) ParamsCode(method string, path string, req string, resp stri
 		),
 		jen.If(
 			jen.Err().Op(":=").Id("c.render.Unmarshal").Call(
-				jen.Id("resp.Body()"),
-				jen.Id("resp.StatusCode()"),
+				jen.Id("resp"),
 				jen.Op("&").Id("result"),
 			),
 			jen.Err().Op("!=").Nil(),

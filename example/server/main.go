@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +10,7 @@ import (
 
 func main() {
 	r := gin.Default()
-	ginapi.RegisterService(r, &UserController{}, render.NewRender(), func(ctx *gin.Context) {
+	ginapi.RegisterService(r, render.NewRender(), &UserController{}, func(ctx *gin.Context) {
 		ctx.Next()
 		fmt.Println("middleware")
 	})
@@ -31,7 +30,7 @@ func (c *UserController) Upload(ctx *gin.Context, req *ginapi.UploadRequest) (*g
 
 func (c *UserController) Save(ctx *gin.Context, req *ginapi.SaveRequest) (*ginapi.SaveResponse, error) {
 	fmt.Println(req.Id, req.Name)
-	return nil, errors.New("this is a error")
+	// return nil, errors.New("this is a error")
 	return &ginapi.SaveResponse{
 		Results: []string{"test"},
 	}, nil

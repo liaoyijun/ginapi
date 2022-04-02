@@ -2,9 +2,7 @@ package v1;
 
 host = "http://localhost:8080";
 
-group = "/school/";
-
-router User {
+router User("/") {
   post Upload("upload", UploadRequest) returns (UploadResponse);
   put Save("save/:id",SaveRequest) returns (SaveResponse);
 }

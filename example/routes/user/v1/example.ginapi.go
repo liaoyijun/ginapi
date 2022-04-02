@@ -11,9 +11,8 @@ import (
 )
 
 type Render interface {
-	Error(error) render.Render
-	Success(interface{}) render.Render
-	Unmarshal([]byte, int, interface{}) error
+	Marshal(interface{}) render.Render
+	Unmarshal(*resty.Response, interface{}) error
 }
 
 type UserService interface {
@@ -28,40 +27,37 @@ type UserClient interface {
 	Save(ctx context.Context, req *SaveRequest, opts ...RequestOption) (*SaveResponse, error)
 }
 
-func RegisterService(engine *gin.Engine, service UserService, render Render, middleware ...gin.HandlerFunc) {
-	group := engine.Group("/school/", middleware...)
-	{
-		group.POST("upload", func(ctx *gin.Context) {
-			var req UploadRequest
-			if err := ctx.ShouldBind(&req); err != nil {
-				ctx.Render(200, render.Error(err))
-				return
-			}
-			resp, err := service.Upload(ctx, &req)
-			if err != nil {
-				ctx.Render(200, render.Error(err))
-				return
-			}
-			ctx.Render(200, render.Success(resp))
-		})
-		group.PUT("save/:id", func(ctx *gin.Context) {
-			var req SaveRequest
-			if err := ctx.ShouldBindUri(&req); err != nil {
-				ctx.Render(200, render.Error(err))
-				return
-			}
-			if err := ctx.ShouldBind(&req); err != nil {
-				ctx.Render(200, render.Error(err))
-				return
-			}
-			resp, err := service.Save(ctx, &req)
-			if err != nil {
-				ctx.Render(200, render.Error(err))
-				return
-			}
-			ctx.Render(200, render.Success(resp))
-		})
-	}
+func RegisterService(engine *gin.Engine, render Render, service UserService, middleware ...gin.HandlerFunc) {
+	engine.POST("upload", append([]gin.HandlerFunc{func(ctx *gin.Context) {
+		var req UploadRequest
+		if err := ctx.ShouldBind(&req); err != nil {
+			ctx.Render(200, render.Marshal(err))
+			return
+		}
+		resp, err := service.Upload(ctx, &req)
+		if err != nil {
+			ctx.Render(200, render.Marshal(err))
+			return
+		}
+		ctx.Render(200, render.Marshal(resp))
+	}}, middleware...)...)
+	engine.PUT("save/:id", append([]gin.HandlerFunc{func(ctx *gin.Context) {
+		var req SaveRequest
+		if err := ctx.ShouldBindUri(&req); err != nil {
+			ctx.Render(200, render.Marshal(err))
+			return
+		}
+		if err := ctx.ShouldBind(&req); err != nil {
+			ctx.Render(200, render.Marshal(err))
+			return
+		}
+		resp, err := service.Save(ctx, &req)
+		if err != nil {
+			ctx.Render(200, render.Marshal(err))
+			return
+		}
+		ctx.Render(200, render.Marshal(resp))
+	}}, middleware...)...)
 }
 
 type UploadRequest struct {
@@ -129,7 +125,7 @@ func NewUserClient(render Render, opts ...clientOption) UserClient {
 }
 
 func (c *userClient) Upload(ctx context.Context, req *UploadRequest, opts ...RequestOption) (*UploadResponse, error) {
-	url := fmt.Sprintf("%s://%s/school/upload", c.scheme, c.host)
+	url := fmt.Sprintf("%s://%s/upload", c.scheme, c.host)
 	var result UploadResponse
 	r := c.client.R()
 	for _, o := range opts {
@@ -144,7 +140,7 @@ func (c *userClient) Upload(ctx context.Context, req *UploadRequest, opts ...Req
 	if err != nil {
 		return nil, err
 	}
-	if err := c.render.Unmarshal(resp.Body(), resp.StatusCode(), &result); err != nil {
+	if err := c.render.Unmarshal(resp, &result); err != nil {
 		return nil, err
 	} else {
 		return &result, nil
@@ -152,7 +148,7 @@ func (c *userClient) Upload(ctx context.Context, req *UploadRequest, opts ...Req
 }
 
 func (c *userClient) Save(ctx context.Context, req *SaveRequest, opts ...RequestOption) (*SaveResponse, error) {
-	url := fmt.Sprintf("%s://%s/school/save/{id}", c.scheme, c.host)
+	url := fmt.Sprintf("%s://%s/save/{id}", c.scheme, c.host)
 	var result SaveResponse
 	r := c.client.R()
 	for _, o := range opts {
@@ -164,7 +160,7 @@ func (c *userClient) Save(ctx context.Context, req *SaveRequest, opts ...Request
 	if err != nil {
 		return nil, err
 	}
-	if err := c.render.Unmarshal(resp.Body(), resp.StatusCode(), &result); err != nil {
+	if err := c.render.Unmarshal(resp, &result); err != nil {
 		return nil, err
 	} else {
 		return &result, nil
