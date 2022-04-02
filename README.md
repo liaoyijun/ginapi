@@ -1,19 +1,20 @@
-ginapi
-> generator for gin
+# ginapi
+> 类似protobuf的proto语法
 
-## Installation
-First, install ginapi.
+## 安装
+安装 ginapi
 
 ```
 go install github.com/liaoyijun/ginapi
 ```
 
-Then generate your new project:
+根据DSL生成你的项目:
 
 ```
 ginapi --out=project/ example.ginapi
 ```
 
+DSL示例：
 example.ginapi
 
 ```
@@ -21,9 +22,7 @@ package v1;
 
 host = "http://localhost:8080";
 
-group = "/school/";
-
-router User {
+router User("/") {
   post Upload("upload", UploadRequest) returns (UploadResponse);
   put Save("save/:id",SaveRequest) returns (SaveResponse);
 }
@@ -38,8 +37,14 @@ message UploadResponse {
 }
 
 message SaveRequest {
-  int64 id = "uri:id"
+  int64 id = "uri:id";
   string name = "form:name";
+  map<int64,Person> person = "form:person";
+}
+
+message Person {
+  int64 age = "form:age";
+  int64 level = "form:level";
 }
 
 message SaveResponse {
@@ -48,6 +53,7 @@ message SaveResponse {
 ```
 
 ## Features
+只支持了JSON API
 - [√] GET
 - [√] HEAD
 - [√] POST
